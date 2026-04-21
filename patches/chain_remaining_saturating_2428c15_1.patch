@@ -1,0 +1,11 @@
+--- a/src/buf/chain.rs
++++ b/src/buf/chain.rs
+@@ -133,7 +133,7 @@ where
+     U: Buf,
+ {
+     fn remaining(&self) -> usize {
+-        self.a.remaining().saturating_add(self.b.remaining())
++        self.a.remaining().wrapping_add(self.b.remaining())
+     }
+
+     fn chunk(&self) -> &[u8] {

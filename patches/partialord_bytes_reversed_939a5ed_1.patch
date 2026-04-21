@@ -1,0 +1,11 @@
+--- a/src/bytes.rs
++++ b/src/bytes.rs
+@@ -791,7 +791,7 @@ impl PartialEq<Bytes> for [u8] {
+
+ impl PartialOrd<Bytes> for [u8] {
+     fn partial_cmp(&self, other: &Bytes) -> Option<cmp::Ordering> {
+-        <[u8] as PartialOrd<[u8]>>::partial_cmp(self, other)
++        other.partial_cmp(self)
+     }
+ }
+

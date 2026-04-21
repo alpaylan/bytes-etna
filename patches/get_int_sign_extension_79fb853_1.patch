@@ -1,0 +1,28 @@
+--- a/src/buf/buf_impl.rs
++++ b/src/buf/buf_impl.rs
+@@ -85,6 +85,7 @@ macro_rules! buf_get_impl {
+ }
+
+ // https://en.wikipedia.org/wiki/Sign_extension
++#[allow(dead_code)]
+ fn sign_extend(val: u64, nbytes: usize) -> i64 {
+     if nbytes == 0 {
+         // avoid `val << 64` panic
+@@ -949,7 +950,7 @@ pub trait Buf {
+     /// This function panics if there is not enough remaining data in `self`, or
+     /// if `nbytes` is greater than 8.
+     fn get_int(&mut self, nbytes: usize) -> i64 {
+-        sign_extend(self.get_uint(nbytes), nbytes)
++        buf_get_impl!(be => self, i64, nbytes);
+     }
+
+     /// Gets a signed n-byte integer from `self` in little-endian byte order.
+@@ -970,7 +971,7 @@ pub trait Buf {
+     /// This function panics if there is not enough remaining data in `self`, or
+     /// if `nbytes` is greater than 8.
+     fn get_int_le(&mut self, nbytes: usize) -> i64 {
+-        sign_extend(self.get_uint_le(nbytes), nbytes)
++        buf_get_impl!(le => self, i64, nbytes);
+     }
+
+     /// Gets a signed n-byte integer from `self` in native-endian byte order.

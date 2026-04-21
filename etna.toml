@@ -32,3 +32,53 @@ properties = [
     "SliceRefEmpty",
 ]
 tools = ["etna", "proptest", "quickcheck", "crabcheck", "hegel"]
+
+[[variant]]
+name = "sign_extend_zero_nbytes_acd1e0f_1"
+property = "get_int_zero_nbytes"
+injection = "patch"
+patch = "patches/sign_extend_zero_nbytes_acd1e0f_1.patch"
+source_commit = "acd1e0ffb8f076225759b8005d04f65ef77cccca"
+witnesses = ["witness_get_int_zero_nbytes_case_eight_zero_bytes"]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/buf/buf_impl.rs"]
+
+[[variant]]
+name = "get_int_sign_extension_79fb853_1"
+property = "get_int_sign_extension"
+injection = "patch"
+patch = "patches/get_int_sign_extension_79fb853_1.patch"
+source_commit = "79fb85323cf4cf14d9b85f487b65fc147030cf4b"
+witnesses = ["witness_get_int_sign_extension_case_four_ff_bytes"]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/buf/buf_impl.rs"]
+
+[[variant]]
+name = "chain_remaining_saturating_2428c15_1"
+property = "chain_remaining_saturating"
+injection = "patch"
+patch = "patches/chain_remaining_saturating_2428c15_1.patch"
+source_commit = "2428c152a67c06057a98d9d29b08389cb3429c1f"
+witnesses = ["witness_chain_remaining_saturating_case_max_plus_one"]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/buf/chain.rs"]
+
+[[variant]]
+name = "partialord_bytes_reversed_939a5ed_1"
+property = "partialord_bytes_reversed"
+injection = "patch"
+patch = "patches/partialord_bytes_reversed_939a5ed_1.patch"
+source_commit = "939a5edf3d28acfc390eedc46eab69843ba363b6"
+witnesses = ["witness_partialord_bytes_reversed_case_lhs_less"]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/bytes.rs"]
+
+[[variant]]
+name = "slice_ref_empty_f330ef6_1"
+property = "slice_ref_empty"
+injection = "patch"
+patch = "patches/slice_ref_empty_f330ef6_1.patch"
+source_commit = "f330ef6c4d806abecadca945f682436737399039"
+witnesses = ["witness_slice_ref_empty_case_nonempty_source"]
+frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+files = ["src/bytes.rs"]
