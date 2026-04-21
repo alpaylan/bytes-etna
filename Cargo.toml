@@ -54,6 +54,12 @@ name = "etna"
 path = "src/bin/etna.rs"
 required-features = ["etna"]
 
+[profile.release]
+# Keep integer-overflow and shift-overflow checks in release builds so
+# panic-on-overflow bugs (e.g. `sign_extend` with nbytes == 0) are
+# observable by the etna runners, which build in --release mode.
+overflow-checks = true
+
 [target.'cfg(loom)'.dev-dependencies]
 loom = "0.7"
 
