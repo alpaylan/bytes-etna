@@ -1,0 +1,34 @@
+# ETNA workload index for bytes.
+#
+# One [[variant]] per injected mutation. Source of truth for variant->property
+# mapping. Every other fact is derivable from the source tree:
+#   - marauders list --path .              (marauders variants; none for this workload)
+#   - ls patches/*.patch                   (patch-based variants)
+#   - grep -rn "pub fn property_" src/     (property functions)
+#   - grep -rn "fn witness_.*_case_" tests/ src/  (witness tests)
+
+name = "bytes"
+language = "Rust"
+
+[workload]
+name = "bytes"
+crate = "bytes"
+language = "rust"
+description = """
+ETNA workload for the Rust `bytes` crate. Each variant re-introduces one
+historical bug-fix into a fresh patched branch and pairs it with a
+framework-neutral property, four PBT adapters, and a deterministic witness
+test.
+"""
+
+[runner]
+bin = "etna"
+cargo_features = ["etna"]
+properties = [
+    "GetIntZeroNbytes",
+    "GetIntSignExtension",
+    "ChainRemainingSaturating",
+    "PartialOrdBytesReversed",
+    "SliceRefEmpty",
+]
+tools = ["etna", "proptest", "quickcheck", "crabcheck", "hegel"]

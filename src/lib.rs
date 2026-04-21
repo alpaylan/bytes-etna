@@ -90,6 +90,10 @@ pub use crate::bytes_mut::BytesMut;
 #[cfg(feature = "serde")]
 mod serde;
 
+// ETNA workload property functions — compiled only with the `etna` feature.
+#[cfg(feature = "etna")]
+pub mod etna;
+
 #[inline(never)]
 #[cold]
 fn abort() -> ! {
