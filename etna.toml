@@ -1,84 +1,140 @@
-# ETNA workload index for bytes.
-#
-# One [[variant]] per injected mutation. Source of truth for variant->property
-# mapping. Every other fact is derivable from the source tree:
-#   - marauders list --path .              (marauders variants; none for this workload)
-#   - ls patches/*.patch                   (patch-based variants)
-#   - grep -rn "pub fn property_" src/     (property functions)
-#   - grep -rn "fn witness_.*_case_" tests/ src/  (witness tests)
-
 name = "bytes"
-language = "Rust"
-
-[workload]
-name = "bytes"
-crate = "bytes"
-language = "rust"
 description = """
 ETNA workload for the Rust `bytes` crate. Each variant re-introduces one
 historical bug-fix into a fresh patched branch and pairs it with a
 framework-neutral property, four PBT adapters, and a deterministic witness
 test.
 """
+language = "rust"
+crate = "bytes"
+base_commit = "e4d5d3409edf69242adff35a200be93441b55223"
 
-[runner]
-bin = "etna"
-cargo_features = ["etna"]
-properties = [
-    "GetIntZeroNbytes",
-    "GetIntSignExtension",
-    "ChainRemainingSaturating",
-    "PartialOrdBytesReversed",
-    "SliceRefEmpty",
-]
-tools = ["etna", "proptest", "quickcheck", "crabcheck", "hegel"]
+[[tasks]]
+mutations = ["sign_extend_zero_nbytes_acd1e0f_1"]
 
-[[variant]]
-name = "sign_extend_zero_nbytes_acd1e0f_1"
-property = "get_int_zero_nbytes"
-injection = "patch"
+[tasks.source]
+repo = "https://github.com/tokio-rs/bytes"
+commits = ["acd1e0ffb8f076225759b8005d04f65ef77cccca"]
+commit_subjects = ["Fix get_int if nbytes is zero (#806)"]
+summary = "`sign_extend` computed `val << (64 - nbytes * 8)` unconditionally; for `nbytes == 0` that is `val << 64` which panics with `attempt to shift left with overflow`. The fix adds an early `if nbytes == 0 { return 0 }` guard."
+
+[tasks.injection]
+kind = "patch"
+files = ["src/buf/buf_impl.rs"]
+locations = [{ file = "src/buf/buf_impl.rs", line = 86 }]
 patch = "patches/sign_extend_zero_nbytes_acd1e0f_1.patch"
-source_commit = "acd1e0ffb8f076225759b8005d04f65ef77cccca"
-witnesses = ["witness_get_int_zero_nbytes_case_eight_zero_bytes"]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
-files = ["src/buf/buf_impl.rs"]
 
-[[variant]]
-name = "get_int_sign_extension_79fb853_1"
-property = "get_int_sign_extension"
-injection = "patch"
+[tasks.bug]
+short_name = "sign_extend_zero_nbytes"
+invariant = "`Buf::get_int(0)` and `Buf::get_int_le(0)` must return `0` without panicking."
+how_triggered = "the patch removes the `if nbytes == 0 { 0 }` guard in `sign_extend`, so a zero-byte call attempts `val << 64`, which panics with `attempt to shift left with overflow`."
+
+[[tasks.tasks]]
+property = "GetIntZeroNbytes"
+witnesses = [
+  { test_fn = "witness_get_int_zero_nbytes_case_eight_zero_bytes" },
+]
+
+[[tasks]]
+mutations = ["get_int_sign_extension_79fb853_1"]
+
+[tasks.source]
+repo = "https://github.com/tokio-rs/bytes"
+commits = ["79fb85323cf4cf14d9b85f487b65fc147030cf4b"]
+commit_subjects = ["fix: apply sign extension when decoding int (#732)"]
+summary = "`Buf::get_int`/`get_int_le` decoded partial integers without sign-extending the high bit, so `[0xff; 4]` returned `4294967295` (i64) instead of `-1`. The fix routes through `sign_extend(get_uint(nbytes), nbytes)` to preserve two's-complement semantics."
+
+[tasks.injection]
+kind = "patch"
+files = ["src/buf/buf_impl.rs"]
+locations = [{ file = "src/buf/buf_impl.rs", line = 949 }]
 patch = "patches/get_int_sign_extension_79fb853_1.patch"
-source_commit = "79fb85323cf4cf14d9b85f487b65fc147030cf4b"
-witnesses = ["witness_get_int_sign_extension_case_four_ff_bytes"]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
-files = ["src/buf/buf_impl.rs"]
 
-[[variant]]
-name = "chain_remaining_saturating_2428c15_1"
-property = "chain_remaining_saturating"
-injection = "patch"
-patch = "patches/chain_remaining_saturating_2428c15_1.patch"
-source_commit = "2428c152a67c06057a98d9d29b08389cb3429c1f"
-witnesses = ["witness_chain_remaining_saturating_case_max_plus_one"]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+[tasks.bug]
+short_name = "get_int_sign_extension"
+invariant = "`Buf::get_int(n)` on a buffer of `n` bytes of `0xff` must equal `-1` (two's-complement sign extension to `i64`)."
+how_triggered = "the patch rewires `get_int`/`get_int_le` to use `buf_get_impl!(be => …, i64, nbytes)` in place of `sign_extend(self.get_uint(nbytes), nbytes)`, so the high bit of a partial integer is dropped and `[0xff; 4]` returns `4294967295` instead of `-1`."
+
+[[tasks.tasks]]
+property = "GetIntSignExtension"
+witnesses = [
+  { test_fn = "witness_get_int_sign_extension_case_four_ff_bytes" },
+]
+
+[[tasks]]
+mutations = ["chain_remaining_saturating_2428c15_1"]
+
+[tasks.source]
+repo = "https://github.com/tokio-rs/bytes"
+commits = ["2428c152a67c06057a98d9d29b08389cb3429c1f"]
+commit_subjects = ["Panic on integer overflow in Chain::remaining (#482)"]
+summary = "`Chain::remaining` summed the halves with a wrapping `+`, so when the combined length exceeded `usize::MAX` it silently underflowed to a smaller value. The fix switches to `saturating_add`, preserving a lower bound of `max(a, b)`."
+
+[tasks.injection]
+kind = "patch"
 files = ["src/buf/chain.rs"]
+locations = [{ file = "src/buf/chain.rs", line = 133 }]
+patch = "patches/chain_remaining_saturating_2428c15_1.patch"
 
-[[variant]]
-name = "partialord_bytes_reversed_939a5ed_1"
-property = "partialord_bytes_reversed"
-injection = "patch"
+[tasks.bug]
+short_name = "chain_remaining_saturating"
+invariant = "`Chain::remaining()` must never silently wrap; when the two halves together exceed `usize::MAX` the result must be at least `max(a, b)` (saturating-add behaviour)."
+how_triggered = "`saturating_add` is replaced by `wrapping_add`, so `Chain(usize::MAX, 1).remaining()` returns `0`, violating the saturating lower bound."
+
+[[tasks.tasks]]
+property = "ChainRemainingSaturating"
+witnesses = [
+  { test_fn = "witness_chain_remaining_saturating_case_max_plus_one" },
+]
+
+[[tasks]]
+mutations = ["partialord_bytes_reversed_939a5ed_1"]
+
+[tasks.source]
+repo = "https://github.com/tokio-rs/bytes"
+commits = ["939a5edf3d28acfc390eedc46eab69843ba363b6"]
+commit_subjects = ["Fix reversed arguments in PartialOrd impls (#358)"]
+summary = "`<[u8] as PartialOrd<Bytes>>::partial_cmp` (and its siblings) were written as `other.partial_cmp(self)`, inverting the comparison. Comparing `[1,2,3]` against `Bytes::from([1,2,4])` returned `Greater` instead of `Less`."
+
+[tasks.injection]
+kind = "patch"
+files = ["src/bytes.rs"]
+locations = [{ file = "src/bytes.rs", line = 791 }]
 patch = "patches/partialord_bytes_reversed_939a5ed_1.patch"
-source_commit = "939a5edf3d28acfc390eedc46eab69843ba363b6"
-witnesses = ["witness_partialord_bytes_reversed_case_lhs_less"]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
-files = ["src/bytes.rs"]
 
-[[variant]]
-name = "slice_ref_empty_f330ef6_1"
-property = "slice_ref_empty"
-injection = "patch"
-patch = "patches/slice_ref_empty_f330ef6_1.patch"
-source_commit = "f330ef6c4d806abecadca945f682436737399039"
-witnesses = ["witness_slice_ref_empty_case_nonempty_source"]
-frameworks = ["proptest", "quickcheck", "crabcheck", "hegel"]
+[tasks.bug]
+short_name = "partialord_bytes_reversed"
+invariant = "`<[u8] as PartialOrd<Bytes>>::partial_cmp(lhs, rhs)` must equal `<[u8]>::partial_cmp(lhs, rhs.as_ref())`."
+how_triggered = "the body is swapped to `other.partial_cmp(self)`, inverting the comparison. For `lhs=[1,2,3]` and `rhs=[1,2,4]` the buggy impl returns `Some(Greater)` instead of `Some(Less)`."
+
+[[tasks.tasks]]
+property = "PartialordBytesReversed"
+witnesses = [
+  { test_fn = "witness_partialord_bytes_reversed_case_lhs_less" },
+]
+
+[[tasks]]
+mutations = ["slice_ref_empty_f330ef6_1"]
+
+[tasks.source]
+repo = "https://github.com/tokio-rs/bytes"
+commits = ["f330ef6c4d806abecadca945f682436737399039"]
+commit_subjects = ["Do not panic on Bytes::slice_ref on empty slice (#355)"]
+summary = "`Bytes::slice_ref(&[])` on a non-empty source ran the subset-containment range check, where the empty slice's pointer can legally be below the source's start, triggering a panic. The fix short-circuits `slice_ref` to return `Bytes::new()` when the subset is empty."
+
+[tasks.injection]
+kind = "patch"
 files = ["src/bytes.rs"]
+locations = [{ file = "src/bytes.rs", line = 407 }]
+patch = "patches/slice_ref_empty_f330ef6_1.patch"
+
+[tasks.bug]
+short_name = "slice_ref_empty"
+invariant = "`Bytes::slice_ref(&[])` must return an empty `Bytes` for any source `Bytes`, including non-empty ones, without panicking."
+how_triggered = "the patch removes the `if subset.is_empty() { return Bytes::new(); }` early-return, so the range-check hits `subset.as_ptr() < self.as_ptr()` and panics with `subset slice is not a subset of self`."
+
+[[tasks.tasks]]
+property = "SliceRefEmpty"
+witnesses = [
+  { test_fn = "witness_slice_ref_empty_case_nonempty_source" },
+]
