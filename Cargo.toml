@@ -54,6 +54,11 @@ name = "etna"
 path = "src/bin/etna.rs"
 required-features = ["etna"]
 
+[[bin]]
+name = "etna-faultloc"
+path = "src/bin/etna-faultloc.rs"
+required-features = ["etna"]
+
 [profile.release]
 # Keep integer-overflow and shift-overflow checks in release builds so
 # panic-on-overflow bugs (e.g. `sign_extend` with nbytes == 0) are

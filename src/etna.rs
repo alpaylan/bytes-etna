@@ -74,36 +74,60 @@ pub fn property_get_int_zero_nbytes(head_bytes: Vec<u8>) -> PropertyResult {
 // get_int_sign_extension_79fb853_1
 // ---------------------------------------------------------------------------
 
-/// Invariant: for `1 <= n <= 7`, reading an `n`-byte signed integer whose
-/// high bit is set via `Buf::get_int` must sign-extend to a negative `i64`.
-/// Concretely: a buffer of `[0xff; n]` (big-endian) must decode to `-1i64`
-/// for any `n` in `1..=7`, and a buffer of `[0xff; 8]` must decode to `-1i64`.
+/// Compute the expected `i64` value of a big-endian `n`-byte two's-complement
+/// integer. `bytes.len()` must equal `n` and `1 <= n <= 8`.
+fn expected_get_int_be(bytes: &[u8]) -> i64 {
+    let n = bytes.len();
+    debug_assert!((1..=8).contains(&n));
+    let mut acc: u64 = 0;
+    for &b in bytes {
+        acc = (acc << 8) | (b as u64);
+    }
+    // Sign-extend from `n` bytes to 64 bits.
+    let shift = 64 - (n * 8) as u32;
+    ((acc << shift) as i64) >> shift
+}
+
+/// Invariant: for any `1 <= n <= 8`, reading an `n`-byte signed integer via
+/// `Buf::get_int` must agree with the two's-complement big-endian
+/// interpretation of those `n` bytes (sign-extended into `i64`). For `n == 8`
+/// this is a plain transmute; for smaller `n` the high bit of the leading
+/// byte determines the sign.
 ///
 /// Bug this catches:
 /// - `get_int_sign_extension_79fb853_1`: pre-fix `get_int` delegated to the
 ///   big-endian macro with a smaller-than-8-byte slice, zero-extending
-///   the high bits and returning a positive number. Property feeds an
-///   all-1s buffer of width `n_byte_select % 8 + 1` and checks the result
-///   is exactly `-1i64`.
-pub fn property_get_int_sign_extension(n_byte_select: u8) -> PropertyResult {
-    let n = ((n_byte_select as usize) % 8) + 1; // 1..=8
-    let buf: Vec<u8> = vec![0xffu8; n];
-    let mut s: &[u8] = &buf[..];
+///   the high bits and returning a positive number for any buffer whose
+///   leading byte has the high bit set. Property feeds a varied buffer
+///   of length 1..=8 and varied byte values, and verifies `get_int(n)`
+///   matches `expected_get_int_be(buf)` for every input.
+pub fn property_get_int_sign_extension(buf: Vec<u8>) -> PropertyResult {
+    // Normalize buffer to length 1..=8 — this is the bug's reachable domain.
+    let mut bytes = buf;
+    if bytes.is_empty() {
+        bytes.push(0);
+    }
+    if bytes.len() > 8 {
+        bytes.truncate(8);
+    }
+    let n = bytes.len();
+    let expected = expected_get_int_be(&bytes);
+    let mut s: &[u8] = &bytes[..];
     let got = match panic::catch_unwind(panic::AssertUnwindSafe(|| s.get_int(n))) {
         Ok(v) => v,
         Err(_) => {
             return PropertyResult::Fail(format!(
-                "get_int({}) panicked for buffer of {} 0xff bytes",
-                n, n
+                "get_int({}) panicked for buffer {:?}",
+                n, bytes
             ));
         }
     };
-    if got == -1i64 {
+    if got == expected {
         PropertyResult::Pass
     } else {
         PropertyResult::Fail(format!(
-            "get_int({}) on [0xff; {}] returned {}, expected -1",
-            n, n, got
+            "get_int({}) on {:?} returned {}, expected {}",
+            n, bytes, got, expected
         ))
     }
 }

@@ -32,8 +32,7 @@ fn witness_get_int_zero_nbytes_case_eight_zero_bytes() {
 /// read as a signed int must come back as `-1`, not `0x00ff_ffff_ff`.
 #[test]
 fn witness_get_int_sign_extension_case_four_ff_bytes() {
-    // n_byte_select = 3 → n = 4
-    assert_pass(property_get_int_sign_extension(3));
+    assert_pass(property_get_int_sign_extension(vec![0xff; 4]));
 }
 
 /// Triggers `chain_remaining_saturating_2428c15_1`. Two operands whose

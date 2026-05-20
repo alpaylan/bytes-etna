@@ -103,12 +103,12 @@ impl fmt::Display for GetIntZeroInput {
 
 #[derive(Clone)]
 struct GetIntSignExtensionInput {
-    n_byte_select: u8,
+    buf: Vec<u8>,
 }
 
 impl fmt::Debug for GetIntSignExtensionInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "n_byte_select={}", self.n_byte_select)
+        write!(f, "buf={:?}", self.buf)
     }
 }
 
@@ -182,7 +182,11 @@ fn canonical_get_int_zero() -> GetIntZeroInput {
 }
 
 fn canonical_get_int_sign_extension() -> GetIntSignExtensionInput {
-    GetIntSignExtensionInput { n_byte_select: 3 }
+    // 4 leading 0xff bytes — same big-endian value (-1i64) as before, but now
+    // expressed as the explicit buffer the property consumes.
+    GetIntSignExtensionInput {
+        buf: vec![0xffu8; 4],
+    }
 }
 
 fn canonical_chain_remaining() -> ChainRemainingInput {
@@ -211,7 +215,7 @@ fn check_get_int_zero_nbytes() -> Result<(), String> {
 
 fn check_get_int_sign_extension() -> Result<(), String> {
     to_err(property_get_int_sign_extension(
-        canonical_get_int_sign_extension().n_byte_select,
+        canonical_get_int_sign_extension().buf,
     ))
 }
 
@@ -274,9 +278,10 @@ impl QcArbitrary for GetIntZeroInput {
 
 impl QcArbitrary for GetIntSignExtensionInput {
     fn arbitrary(g: &mut Gen) -> Self {
-        GetIntSignExtensionInput {
-            n_byte_select: <u8 as QcArbitrary>::arbitrary(g),
-        }
+        // Length 1..=8 (the entire reachable domain of `Buf::get_int(nbytes)`).
+        let n: usize = ((<usize as QcArbitrary>::arbitrary(g)) % 8) + 1;
+        let buf: Vec<u8> = (0..n).map(|_| <u8 as QcArbitrary>::arbitrary(g)).collect();
+        GetIntSignExtensionInput { buf }
     }
 }
 
@@ -337,9 +342,9 @@ impl<R: Rng> CcArbitrary<R> for GetIntZeroInput {
 
 impl<R: Rng> CcArbitrary<R> for GetIntSignExtensionInput {
     fn generate(rng: &mut R, _n: usize) -> Self {
-        GetIntSignExtensionInput {
-            n_byte_select: rng.random::<u8>(),
-        }
+        let n: usize = ((rng.random::<u32>() as usize) % 8) + 1;
+        let buf: Vec<u8> = (0..n).map(|_| rng.random::<u8>()).collect();
+        GetIntSignExtensionInput { buf }
     }
 }
 
@@ -396,8 +401,8 @@ fn get_int_zero_strategy() -> BoxedStrategy<GetIntZeroInput> {
 }
 
 fn get_int_sign_extension_strategy() -> BoxedStrategy<GetIntSignExtensionInput> {
-    any::<u8>()
-        .prop_map(|n_byte_select| GetIntSignExtensionInput { n_byte_select })
+    proptest::collection::vec(any::<u8>(), 1..=8usize)
+        .prop_map(|buf| GetIntSignExtensionInput { buf })
         .boxed()
 }
 
@@ -462,7 +467,7 @@ fn run_proptest_property(property: &str) -> Outcome {
                 c.fetch_add(1, Ordering::Relaxed);
                 let cex = format!("({:?})", v);
                 let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    property_get_int_sign_extension(v.n_byte_select)
+                    property_get_int_sign_extension(v.buf.clone())
                 }));
                 match out {
                     Ok(PropertyResult::Pass) | Ok(PropertyResult::Discard) => Ok(()),
@@ -554,7 +559,7 @@ fn qc_get_int_zero(v: GetIntZeroInput) -> TestResult {
 fn qc_get_int_sign_extension(v: GetIntSignExtensionInput) -> TestResult {
     QC_COUNTER.fetch_add(1, Ordering::Relaxed);
     let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        property_get_int_sign_extension(v.n_byte_select)
+        property_get_int_sign_extension(v.buf)
     }));
     match out {
         Ok(PropertyResult::Pass) => TestResult::passed(),
@@ -661,7 +666,7 @@ fn cc_get_int_zero(v: GetIntZeroInput) -> Option<bool> {
 
 fn cc_get_int_sign_extension(v: GetIntSignExtensionInput) -> Option<bool> {
     CC_COUNTER.fetch_add(1, Ordering::Relaxed);
-    match property_get_int_sign_extension(v.n_byte_select) {
+    match property_get_int_sign_extension(v.buf) {
         PropertyResult::Pass => Some(true),
         PropertyResult::Fail(_) => Some(false),
         PropertyResult::Discard => None,
@@ -798,10 +803,11 @@ fn run_hegel_property(property: &str) -> Outcome {
         "GetIntSignExtension" => {
             Hegel::new(|tc: TestCase| {
                 HG_COUNTER.fetch_add(1, Ordering::Relaxed);
-                let n_byte_select = hg_draw_u8(&tc);
-                let cex = format!("(n_byte_select={})", n_byte_select);
+                let n = tc.draw(hgen::integers::<u32>().min_value(1).max_value(8)) as usize;
+                let buf: Vec<u8> = (0..n).map(|_| hg_draw_u8(&tc)).collect();
+                let cex = format!("(buf={:?})", buf);
                 let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    property_get_int_sign_extension(n_byte_select)
+                    property_get_int_sign_extension(buf.clone())
                 }));
                 match out {
                     Ok(PropertyResult::Pass) | Ok(PropertyResult::Discard) => {}
